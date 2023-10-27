@@ -1,6 +1,6 @@
 port module Main exposing (main)
 
-import Browser exposing (Document)
+import Browser
 import Dict exposing (Dict)
 import Html exposing (..)
 import Html.Attributes exposing (..)
@@ -14,6 +14,12 @@ import Time
 
 
 -- Ports
+
+
+port ticked : (Int -> msg) -> Sub msg
+
+
+port setPageTitle : String -> Cmd msg
 
 
 port save : E.Value -> Cmd msg
@@ -71,7 +77,7 @@ init _ =
 type Msg
     = GotTimeData ( Time.Posix, Time.Zone )
     | GotShifts E.Value
-    | Tick Time.Posix
+    | Tick Int
     | StartShift
     | StopShift
     | RemoveShift Int
@@ -127,8 +133,13 @@ update msg model =
             in
             ( { model | shifts = newShifts }, Cmd.none )
 
-        Tick time ->
-            ( { model | time = time }, Cmd.none )
+        Tick millis ->
+            let
+                pageTitle =
+                    totalTrackedTime model.time model.zone model.shifts
+                        |> minutesToHourAndMinutes
+            in
+            ( { model | time = Time.millisToPosix millis }, setPageTitle <| pageTitle ++ " - Marcação de Ponto" )
 
         StartShift ->
             ( { model
@@ -228,20 +239,8 @@ update msg model =
 -- View
 
 
-view : Model -> Document Msg
+view : Model -> Html Msg
 view model =
-    let
-        timeTracked =
-            totalTrackedTime model.time model.zone model.shifts
-                |> minutesToHourAndMinutes
-    in
-    { title = timeTracked ++ " - Marcação de ponto"
-    , body = [ viewBody model ]
-    }
-
-
-viewBody : Model -> Html Msg
-viewBody model =
     let
         ( trackAction, trackIcon, trackColor ) =
             if isTracking model.shifts then
@@ -488,8 +487,8 @@ monthToInt month =
 subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.batch
-        [ Time.every 1000 Tick
-        , gotShifts GotShifts
+        [ gotShifts GotShifts
+        , ticked Tick
         ]
 
 
@@ -499,7 +498,7 @@ subscriptions _ =
 
 main : Program () Model Msg
 main =
-    Browser.document
+    Browser.element
         { init = init
         , view = view
         , update = updateWithSave

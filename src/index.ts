@@ -14,6 +14,16 @@ const app = Elm.Main.init({
   node: document.getElementById("app"),
 });
 
+const tickWorker = new Worker(new URL("./tickWorker.js", import.meta.url));
+
+tickWorker.onmessage = (event: MessageEvent<number>) => {
+  app.ports.ticked.send(event.data);
+};
+
+app.ports.setPageTitle.subscribe((title: string) => {
+  document.title = title;
+});
+
 app.ports.save.subscribe((tracking: Tracking) => {
   localStorage.setItem(tracking.date, JSON.stringify(tracking.shifts));
 });
